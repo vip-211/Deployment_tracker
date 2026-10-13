@@ -699,6 +699,7 @@ def get_deployment_by_cr():
                 verified_and_deployed_by,
                 change_requestor,
                 release_notes,
+                comments,
                 incident_number,
                 roll_back,
                 status
@@ -841,7 +842,7 @@ def update_devops_deployment(deployment_id):
             SELECT id, cr_number, rfid, deployment_date, slot_start, slot_end,
                    application_name, deployment_type, change_type, released_by,
                    verified_and_deployed_by, change_requestor, release_notes,
-                   incident_number, roll_back, status
+                   comments, incident_number, roll_back, status
             FROM public.deployment_tracker
             WHERE id = %s
             FOR UPDATE
@@ -868,6 +869,7 @@ def update_devops_deployment(deployment_id):
                 verified_and_deployed_by = %s,
                 change_requestor = %s,
                 release_notes = %s,
+                comments = %s,
                 incident_number = %s,
                 roll_back = %s,
                 status = %s
@@ -885,6 +887,7 @@ def update_devops_deployment(deployment_id):
                 verified_and_deployed_by,
                 change_requestor,
                 (data.get("release_notes") or "").strip() or None,
+                (data.get("comments") or "").strip() or None,
                 (data.get("incident_number") or "").strip() or None,
                 data["roll_back"],
                 data["status"],
@@ -902,6 +905,7 @@ def update_devops_deployment(deployment_id):
             "verified_and_deployed_by": verified_and_deployed_by,
             "change_requestor": change_requestor,
             "release_notes": (data.get("release_notes") or "").strip() or None,
+            "comments": (data.get("comments") or "").strip() or None,
             "incident_number": (data.get("incident_number") or "").strip() or None,
             "roll_back": data["roll_back"],
             "status": data["status"],
@@ -931,7 +935,10 @@ def update_devops_deployment(deployment_id):
             old_record.get("cr_number"),
             old_record.get("rfid"),
         )
-        return jsonify({"success": True, "message": "Deployment details updated successfully."})
+        return jsonify({
+            "success": True,
+            "message": "Deployment details updated successfully."
+        })
     except errors.ExclusionViolation:
         if conn:
             conn.rollback()
@@ -974,6 +981,7 @@ def pending_deployments():
                 verified_and_deployed_by,
                 change_requestor,
                 release_notes,
+                comments,
                 incident_number,
                 roll_back,
                 status
@@ -1044,6 +1052,7 @@ def deployments_by_date():
                 verified_and_deployed_by,
                 change_requestor,
                 release_notes,
+                comments,
                 incident_number,
                 roll_back,
                 status
@@ -1117,6 +1126,36 @@ def decide_deployment_request(deployment_id):
         conn = get_connection()
         conn.autocommit = False
         cursor = conn.cursor()
+
+        # Read the exact row under lock so the email contains every current form field.
+        cursor.execute("""
+            SELECT
+                id, cr_number, rfid, deployment_date, slot_start, slot_end,
+                application_name, deployment_type, change_type, released_by,
+                verified_and_deployed_by, change_requestor, release_notes,
+                comments, incident_number, roll_back, status
+            FROM public.deployment_tracker
+            WHERE id = %s
+            FOR UPDATE
+        """, (deployment_id,))
+        old_row = cursor.fetchone()
+        if old_row is None:
+            conn.rollback()
+            return jsonify({
+                "success": False,
+                "message": "Deployment record not found. Refresh the pending list."
+            }), 409
+
+        columns = [desc[0] for desc in cursor.description]
+        deployment_snapshot = dict(zip(columns, old_row))
+        old_status = str(deployment_snapshot.get("status") or "Pending").strip()
+        if old_status.casefold() != "pending":
+            conn.rollback()
+            return jsonify({
+                "success": False,
+                "message": "Request is no longer pending. Refresh the pending list."
+            }), 409
+
         cursor.execute("""
             UPDATE public.deployment_tracker
             SET status = %s
@@ -1124,8 +1163,8 @@ def decide_deployment_request(deployment_id):
               AND LOWER(TRIM(COALESCE(status, 'Pending'))) = 'pending'
             RETURNING cr_number, rfid
         """, (new_status, deployment_id))
-        row = cursor.fetchone()
-        if row is None:
+        updated_row = cursor.fetchone()
+        if updated_row is None:
             conn.rollback()
             return jsonify({
                 "success": False,
@@ -1134,23 +1173,25 @@ def decide_deployment_request(deployment_id):
                     "Refresh the pending list."
                 )
             }), 409
+
         insert_change_history(
             cursor,
             deployment_id,
-            row[0],
-            row[1],
+            updated_row[0],
+            updated_row[1],
             modified_by,
             decision.title(),
-            {"status": {"old": "Pending", "new": new_status}},
+            {"status": {"old": old_status, "new": new_status}},
         )
         conn.commit()
         write_audit_log(
             "INFO",
             f"Deployment request {decision}d: "
-            f"ID={deployment_id}, CR={row[0]}, status={new_status}, changed_by={modified_by}",
-            row[0],
-            row[1]
+            f"ID={deployment_id}, CR={updated_row[0]}, status={new_status}, changed_by={modified_by}",
+            updated_row[0],
+            updated_row[1]
         )
+
         return jsonify({
             "success": True,
             "message": f"Request {new_status.lower()} successfully.",
@@ -1332,13 +1373,11 @@ def Release_Calender():
     try:
         rfid = save_deployment(data)
         cr_number = (data.get("cr_number") or "").strip()
-        flash(
-            (
-                "Request submitted successfully! "
-                f"CR Number: {cr_number} | RFID: {rfid}"
-            ),
-            "success",
+        success_message = (
+            "Request submitted successfully! "
+            f"CR Number: {cr_number} | RFID: {rfid}"
         )
+        flash(success_message, "success")
         return redirect(url_for("Release_Calender"))
     except ValueError as exc:
         flash(str(exc), "error")

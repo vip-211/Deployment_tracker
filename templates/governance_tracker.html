@@ -303,6 +303,8 @@
 
       <div class="field full"><label for="out_release_notes">Release Notes</label><textarea id="out_release_notes"></textarea></div>
 
+      <div class="field full"><label for="out_comments">Comments <span class="muted" style="font-weight:400">(optional)</span></label><textarea id="out_comments" maxlength="5000" placeholder="Add optional comments for this deployment..."></textarea></div>
+
     </div>
 
     <div class="field full">
@@ -831,6 +833,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     setField("out_release_notes", record.release_notes);
 
+    setField("out_comments", record.comments);
+
     document.getElementById("resultBadge").textContent = record.status || "Pending";
 
     crInput.value = record.cr_number || "";
@@ -1089,6 +1093,8 @@ document.addEventListener("DOMContentLoaded", function () {
       incident_number: document.getElementById("out_incident_number").value.trim(),
 
       release_notes: document.getElementById("out_release_notes").value,
+
+      comments: document.getElementById("out_comments").value.trim(),
 
       roll_back: document.getElementById("out_roll_back").value,
 
