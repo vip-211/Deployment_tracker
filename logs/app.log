@@ -4063,3 +4063,10 @@ jinja2.exceptions.UndefinedError: 'metrics' is undefined
 2026-10-14 12:53:57,448 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:53:57] "GET /api/deployments-by-date?date=2026-10-14 HTTP/1.1" 200 -
 2026-10-14 12:53:57,502 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:53:57] "GET /api/pending-deployments HTTP/1.1" 200 -
 2026-10-14 12:54:03,806 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:54:03] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:58:55,912 INFO werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-10-14 12:58:55,928 INFO werkzeug: [33mPress CTRL+C to quit[0m
+2026-10-14 12:58:57,970 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:58:57] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:58:58,138 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:58:58] "GET /api/deployments-by-date?date=2026-10-14 HTTP/1.1" 200 -
+2026-10-14 12:58:58,166 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:58:58] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:59:00,973 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:59:00] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
