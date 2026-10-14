@@ -1,9 +1,6 @@
 import logging
-import json
 import os
 import secrets
-import hashlib
-import hmac
 from datetime import datetime, time, timedelta,date
 from pathlib import Path
 import re
@@ -24,9 +21,6 @@ if not app.secret_key:
     raise RuntimeError(
         "FLASK_SECRET_KEY is missing. Add it to your .env file."
     )
-
-# Keep AUDIT_PASSCODE_PEPPER stable across restarts; existing passcodes depend on it.
-AUDIT_PASSCODE_PEPPER = os.getenv("AUDIT_PASSCODE_PEPPER") or app.secret_key
 LOG_DIR = BASE_DIR / "logs"
 LOG_DIR.mkdir(exist_ok=True)
 
@@ -81,196 +75,6 @@ def get_connection():
         sslmode="disable",
         connect_timeout=10
     )
-
-def normalize_audit_email(value):
-    """Normalize and validate an email used as a Modified By identity."""
-    email = (value or "").strip().lower()
-    if len(email) > 254 or not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-        raise ValueError("Enter a valid email address for Modified By.")
-    return email
-
-
-def audit_passcode_digest(passcode):
-    """Return a deterministic keyed digest so passcodes are not stored as text."""
-    return hmac.new(
-        AUDIT_PASSCODE_PEPPER.encode("utf-8"),
-        ("deployment-tracker-audit-v1:" + passcode).encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-
-def get_audit_user_emails():
-    """Fetch registered audit identities for the Modified By dropdown."""
-    conn = None
-    try:
-        conn = get_connection()
-        with conn.cursor() as cur:
-            cur.execute("SELECT email FROM public.audit_users ORDER BY email")
-            return [row[0] for row in cur.fetchall()]
-    except Exception:
-        app.logger.exception("Could not load audit user registry; run audit_user_registry.sql")
-        return []
-    finally:
-        if conn is not None:
-            conn.close()
-
-
-def verify_audit_user_credentials(email_value, passcode):
-    """Verify email + its unique 4-digit code and apply a five-failure lockout."""
-    try:
-        email = normalize_audit_email(email_value)
-    except ValueError as exc:
-        return False, str(exc), 400
-
-    if not re.fullmatch(r"\d{4}", str(passcode or "")):
-        return False, "Enter the 4-digit passcode for this email address.", 400
-
-    conn = None
-    try:
-        conn = get_connection()
-        conn.autocommit = False
-        with conn.cursor() as cur:
-            cur.execute(
-                """
-                SELECT passcode_digest, failed_attempts, locked_until
-                FROM public.audit_users
-                WHERE email = %s
-                FOR UPDATE
-                """,
-                (email,),
-            )
-            row = cur.fetchone()
-            if row is None:
-                conn.rollback()
-                return False, "This email is not registered. Select Add Email to register it.", 401
-
-            stored_digest, failed_attempts, locked_until = row
-            now = datetime.now()
-            if locked_until and locked_until > now:
-                remaining = max(1, int((locked_until - now).total_seconds() // 60) + 1)
-                conn.commit()
-                return False, f"Too many failed attempts. Try again in about {remaining} minute(s).", 429
-
-            if locked_until and locked_until <= now:
-                failed_attempts = 0
-                cur.execute(
-                    "UPDATE public.audit_users SET failed_attempts = 0, locked_until = NULL WHERE email = %s",
-                    (email,),
-                )
-
-            candidate_digest = audit_passcode_digest(str(passcode))
-            if hmac.compare_digest(str(stored_digest).strip(), candidate_digest):
-                cur.execute(
-                    """
-                    UPDATE public.audit_users
-                    SET failed_attempts = 0,
-                        locked_until = NULL,
-                        last_used_at = CURRENT_TIMESTAMP
-                    WHERE email = %s
-                    """,
-                    (email,),
-                )
-                conn.commit()
-                return True, email, 200
-
-            new_failures = int(failed_attempts or 0) + 1
-            if new_failures >= 5:
-                cur.execute(
-                    """
-                    UPDATE public.audit_users
-                    SET failed_attempts = %s,
-                        locked_until = %s
-                    WHERE email = %s
-                    """,
-                    (new_failures, now + timedelta(minutes=15), email),
-                )
-                conn.commit()
-                return False, "Five incorrect attempts reached. This email is locked for 15 minutes.", 429
-
-            cur.execute(
-                "UPDATE public.audit_users SET failed_attempts = %s WHERE email = %s",
-                (new_failures, email),
-            )
-            conn.commit()
-            return False, f"Incorrect passcode. {5 - new_failures} attempt(s) remaining before a 15-minute lock.", 401
-
-    except Exception:
-        if conn is not None:
-            conn.rollback()
-        app.logger.exception("Audit user passcode verification failed")
-        return False, "Audit identity storage is unavailable. Run audit_user_registry.sql and retry.", 500
-    finally:
-        if conn is not None:
-            conn.close()
-
-
-@app.route("/api/audit-users/register", methods=["POST"])
-def register_audit_user():
-    """Register a new email and return its unique passcode only once."""
-    payload = request.get_json(silent=True) or {}
-    try:
-        email = normalize_audit_email(payload.get("email"))
-    except ValueError as exc:
-        return jsonify({"success": False, "message": str(exc)}), 400
-
-    conn = None
-    try:
-        conn = get_connection()
-        # Each INSERT is an independent transaction. ON CONFLICT protects both
-        # email uniqueness and the global unique-passcode rule under concurrency.
-        conn.autocommit = True
-        with conn.cursor() as cur:
-            cur.execute("SELECT 1 FROM public.audit_users WHERE email = %s", (email,))
-            if cur.fetchone():
-                return jsonify({
-                    "success": False,
-                    "message": "This email is already registered. Select it and enter its passcode.",
-                }), 409
-
-            for _ in range(500):
-                passcode = f"{secrets.randbelow(10000):04d}"
-                digest = audit_passcode_digest(passcode)
-                cur.execute(
-                    """
-                    INSERT INTO public.audit_users (email, passcode_digest)
-                    VALUES (%s, %s)
-                    ON CONFLICT DO NOTHING
-                    RETURNING email
-                    """,
-                    (email, digest),
-                )
-                if cur.fetchone():
-                    app.logger.info("Audit identity registered: %s", email)
-                    return jsonify({
-                        "success": True,
-                        "email": email,
-                        "passcode": passcode,
-                        "message": "Email registered. Save this 4-digit passcode now; it will not be shown again.",
-                    }), 201
-
-                # If the email won a concurrent registration, do not generate a
-                # second passcode for it. If only the code collided, try another.
-                cur.execute("SELECT 1 FROM public.audit_users WHERE email = %s", (email,))
-                if cur.fetchone():
-                    return jsonify({
-                        "success": False,
-                        "message": "This email is already registered. Select it and enter its passcode.",
-                    }), 409
-
-            return jsonify({
-                "success": False,
-                "message": "Could not find an unused 4-digit passcode. Contact the application administrator.",
-            }), 503
-    except Exception:
-        app.logger.exception("Audit user registration failed")
-        return jsonify({
-            "success": False,
-            "message": "Could not register the email. Ensure audit_user_registry.sql has been applied.",
-        }), 500
-    finally:
-        if conn is not None:
-            conn.close()
-
 
 def is_manager_user():
     return str(session.get("role", "")).strip().lower() == "manager"
@@ -330,32 +134,6 @@ def write_audit_log(level, message,cr_number=None,rfid=None):
         if conn is not None:
             conn.close()
 
-def insert_change_history(cur, deployment_id, cr_number, rfid, modified_by, action, changes):
-    """Persist field-level audit history in the same transaction as the update."""
-    cur.execute(
-        """
-        INSERT INTO public.deployment_change_history
-            (deployment_id, cr_number, rfid, modified_by, action, changes)
-        VALUES (%s, %s, %s, %s, %s, %s::jsonb)
-        """,
-        (
-            deployment_id,
-            cr_number,
-            rfid,
-            modified_by,
-            action,
-            json.dumps(changes, default=lambda value: value.isoformat() if hasattr(value, "isoformat") else str(value)),
-        ),
-    )
-
-
-def audit_value(value):
-    """Convert database values to JSON-friendly values for old/new snapshots."""
-    if isinstance(value, (datetime, date, time)):
-        return value.isoformat()
-    return value
-
-
 def generate_rfid():
     return f"{secrets.randbelow(100_000_000):08d}"
 
@@ -394,11 +172,29 @@ def save_deployment(data):
     if len(change_requestor) > 150:
         raise ValueError("Change Requestor cannot exceed 150 characters.")
 
-    # Released By and Verified and Deployed By are not collected on the
-    # Release Calendar form anymore. Store NULL for these optional columns;
-    # DevOps can still populate them later from the Governance Tracker.
-    released_by = None
-    verified_and_deployed_by = None
+    released_by_choice = (
+        data.get("released_by") or ""
+    ).strip()
+    if released_by_choice == "__add__":
+        released_by = (
+            data.get("released_by_new") or ""
+        ).strip()
+        if not released_by:
+            raise ValueError(
+                "Please enter the new Released By user name."
+            )
+        if len(released_by) > 100:
+            raise ValueError(
+                "Released By name cannot exceed 100 characters."
+            )
+    elif released_by_choice in get_released_by_users():
+        released_by = released_by_choice
+    else:
+        raise ValueError(
+            "Please select a valid Released By user."
+        )
+
+    verified_and_deployed_by = resolve_verified_deployed_by(data)
 
     if not cr_number:
         raise ValueError("CR Number is required.")
@@ -430,14 +226,8 @@ def save_deployment(data):
     if data.get("change_type") not in CHANGE_TYPES:
         raise ValueError("Invalid change type.")
     data["status"] = "Pending"
-
-    # Roll Back is no longer collected on the Release Calendar form.
-    # Keep the database field valid by defaulting new requests to "No".
-    roll_back = (data.get("roll_back") or "No").strip()
-    if roll_back not in ("Yes", "No"):
+    if data.get("roll_back") not in ("Yes", "No"):
         raise ValueError("Invalid rollback selection.")
-    data["roll_back"] = roll_back
-
     slot_start = datetime.combine(
         deployment_date,
         start_time,
@@ -643,14 +433,14 @@ def resolve_verified_deployed_by(data):
 
 
 def form_context(data=None):
-    # Release Calendar no longer collects Released By or Verified and Deployed By.
-    # These fields remain available in Governance Tracker for later editing.
     return {
         "data": data or {},
         "change_types": CHANGE_TYPES,
         "deployment_types": DEPLOYMENT_TYPES,
         "statuses": STATUSES,
         "slot_starts": SLOT_STARTS,
+        "released_by_users": get_released_by_users(),
+        "verified_by_options": VERIFIED_BY_OPTIONS,
     }
 
 @app.route("/governance_tracker", methods=["GET"])
@@ -663,12 +453,59 @@ def devops_page():
         statuses=STATUSES,
         released_by_users=get_released_by_users(),
         verified_by_options=VERIFIED_BY_OPTIONS,
-        audit_user_emails=get_audit_user_emails(),
     )
 
-@app.route("/api/deployment-by-cr", methods=["GET"])
+@app.route("/api/deployments-by-date", methods=["GET"])
+def get_deployments_by_date():
+    """Return all deployment records for a selected calendar date as JSON."""
+    date_text = (request.args.get("date") or "").strip()
+    try:
+        selected_date = date.fromisoformat(date_text)
+    except ValueError:
+        return jsonify({"success": False, "message": "Provide a valid date in YYYY-MM-DD format."}), 400
 
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            """
+            SELECT id, cr_number, rfid, deployment_date, slot_start, slot_end,
+                   application_name, deployment_type, change_type,
+                   released_by, verified_and_deployed_by, change_requestor,
+                   release_notes, incident_number, roll_back, status
+            FROM public.deployment_tracker
+            WHERE deployment_date = %s
+            ORDER BY slot_start ASC NULLS LAST, id ASC
+            """,
+            (selected_date,),
+        )
+        rows = cursor.fetchall()
+        columns = [description[0] for description in cursor.description]
+        deployments = []
+        for row in rows:
+            record = dict(zip(columns, row))
+            for key, value in record.items():
+                if isinstance(value, (datetime, date, time)):
+                    record[key] = value.isoformat()
+                elif value is not None and not isinstance(value, (str, int, float, bool)):
+                    record[key] = str(value)
+            deployments.append(record)
+        return jsonify({"success": True, "date": selected_date.isoformat(), "deployments": deployments})
+    except Exception:
+        app.logger.exception("Daily deployment schedule API failed for %s", date_text)
+        return jsonify({"success": False, "message": "Could not load deployments for this date. Check Flask logs."}), 500
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+@app.route("/api/deployment-by-cr", methods=["GET"])
 def get_deployment_by_cr():
+    """Return every deployment request associated with the supplied CR number."""
     cr_number = (request.args.get("cr_number") or "").strip()
     cr_number = re.sub(r"^CR-", "", cr_number, flags=re.IGNORECASE).strip()
     if not cr_number.isdigit():
@@ -676,6 +513,7 @@ def get_deployment_by_cr():
             "success": False,
             "message": "Enter a valid CR Number, for example CR-12345."
         }), 400
+
     normalized_cr = f"CR-{cr_number}"
     conn = None
     cursor = None
@@ -685,59 +523,45 @@ def get_deployment_by_cr():
         cursor.execute(
             """
             SELECT
-                id,
-                cr_number,
-                rfid,
-                deployment_date,
-                slot_start,
-                slot_end,
-                slots,
-                application_name,
-                deployment_type,
-                change_type,
-                released_by,
-                verified_and_deployed_by,
-                change_requestor,
-                release_notes,
-                comments,
-                incident_number,
-                roll_back,
-                status
+                id, cr_number, rfid, deployment_date, slot_start, slot_end,
+                slots, application_name, deployment_type, change_type,
+                released_by, verified_and_deployed_by, change_requestor,
+                release_notes, incident_number, roll_back, status
             FROM public.deployment_tracker
-            WHERE UPPER(
-                REGEXP_REPLACE(TRIM(cr_number), '^CR-', '', 'i')
-            ) = %s
-            ORDER BY id DESC
-            LIMIT 1
+            WHERE UPPER(REGEXP_REPLACE(TRIM(cr_number), '^CR-', '', 'i')) = %s
+            ORDER BY deployment_date DESC NULLS LAST, slot_start DESC NULLS LAST, id DESC
             """,
             (cr_number.upper(),)
         )
-        row = cursor.fetchone()
-        if not row:
+        rows = cursor.fetchall()
+        if not rows:
             return jsonify({
                 "success": False,
-                "message": f"No deployment found for {normalized_cr}."
+                "message": f"No deployment requests found for {normalized_cr}."
             }), 404
+
         columns = [description[0] for description in cursor.description]
-        deployment = dict(zip(columns, row))
-        for key, value in deployment.items():
-            if isinstance(value, (datetime, date, time)):
-                deployment[key] = value.isoformat()
-            elif value is not None and not isinstance(
-                value, (str, int, float, bool)
-            ):
-                deployment[key] = str(value)
-        deployment["cr_number"] = normalized_cr
+        deployments = []
+        for row in rows:
+            deployment = dict(zip(columns, row))
+            for key, value in deployment.items():
+                if isinstance(value, (datetime, date, time)):
+                    deployment[key] = value.isoformat()
+                elif value is not None and not isinstance(value, (str, int, float, bool)):
+                    deployment[key] = str(value)
+            deployment["cr_number"] = normalized_cr
+            deployments.append(deployment)
+
         return jsonify({
             "success": True,
-            "message": "Deployment details retrieved successfully.",
-            "deployment": deployment
+            "message": f"Found {len(deployments)} request(s) for {normalized_cr}.",
+            "requests": deployments
         })
     except Exception:
         app.logger.exception("DevOps CR lookup failed")
         return jsonify({
             "success": False,
-            "message": "Could not retrieve deployment details. Check the server logs."
+            "message": "Could not retrieve deployment requests. Check the server logs."
         }), 500
     finally:
         if cursor:
@@ -750,14 +574,6 @@ def get_deployment_by_cr():
 def update_devops_deployment(deployment_id):
     """Update an existing deployment row from the DevOps page."""
     data = request.get_json(silent=True) or {}
-    try:
-        modified_by = normalize_audit_email(data.get("modified_by"))
-    except ValueError as exc:
-        return jsonify({"success": False, "message": str(exc)}), 400
-    modified_by_passcode = str(data.get("modified_by_passcode") or "").strip()
-    if not re.fullmatch(r"\d{4}", modified_by_passcode):
-        return jsonify({"success": False, "message": "Enter the 4-digit passcode for the selected email."}), 400
-
     required_fields = [
         "deployment_date", "slot_start", "application_name",
         "deployment_type", "change_type", "roll_back", "status",
@@ -812,9 +628,16 @@ def update_devops_deployment(deployment_id):
         start_time = datetime.strptime(data["slot_start"], "%H:%M").time()
     except ValueError:
         return jsonify({"success": False, "message": "Invalid deployment date or slot."}), 400
-    # Governance Tracker edits may update historical deployment dates.
-    # Keep date-format validation above and slot-time validation below, but do
-    # not apply the booking-only past-date/weekend restriction to edits here.
+    try:
+        validate_deployment_date(
+        deployment_date,
+        is_manager=is_manager_user()
+    )
+    except ValueError as exc:
+        return jsonify({
+        "success": False,
+        "message": str(exc)
+    }), 400
     if start_time.strftime("%H:%M") not in SLOT_STARTS:
         return jsonify({
             "success": False,
@@ -822,13 +645,6 @@ def update_devops_deployment(deployment_id):
         }), 400
     if not data["application_name"].strip():
         return jsonify({"success": False, "message": "Application Name is required."}), 400
-
-    credentials_ok, credential_message, credential_status = verify_audit_user_credentials(
-        modified_by, modified_by_passcode
-    )
-    if not credentials_ok:
-        return jsonify({"success": False, "message": credential_message}), credential_status
-
     slot_start = datetime.combine(deployment_date, start_time)
     slot_end = slot_start + timedelta(minutes=30)
     conn = None
@@ -838,23 +654,12 @@ def update_devops_deployment(deployment_id):
         conn.autocommit = False
         cursor = conn.cursor()
         cursor.execute(
-            """
-            SELECT id, cr_number, rfid, deployment_date, slot_start, slot_end,
-                   application_name, deployment_type, change_type, released_by,
-                   verified_and_deployed_by, change_requestor, release_notes,
-                   comments, incident_number, roll_back, status
-            FROM public.deployment_tracker
-            WHERE id = %s
-            FOR UPDATE
-            """,
+            "SELECT id FROM public.deployment_tracker WHERE id = %s FOR UPDATE",
             (deployment_id,),
         )
-        old_row = cursor.fetchone()
-        if old_row is None:
+        if cursor.fetchone() is None:
             conn.rollback()
             return jsonify({"success": False, "message": "Deployment record not found."}), 404
-        old_columns = [description[0] for description in cursor.description]
-        old_record = dict(zip(old_columns, old_row))
         cursor.execute(
             """
             UPDATE public.deployment_tracker
@@ -869,7 +674,6 @@ def update_devops_deployment(deployment_id):
                 verified_and_deployed_by = %s,
                 change_requestor = %s,
                 release_notes = %s,
-                comments = %s,
                 incident_number = %s,
                 roll_back = %s,
                 status = %s
@@ -887,58 +691,18 @@ def update_devops_deployment(deployment_id):
                 verified_and_deployed_by,
                 change_requestor,
                 (data.get("release_notes") or "").strip() or None,
-                (data.get("comments") or "").strip() or None,
                 (data.get("incident_number") or "").strip() or None,
                 data["roll_back"],
                 data["status"],
                 deployment_id,
             ),
         )
-        new_record = {
-            "deployment_date": deployment_date,
-            "slot_start": slot_start,
-            "slot_end": slot_end,
-            "application_name": data["application_name"].strip(),
-            "deployment_type": data["deployment_type"],
-            "change_type": data["change_type"],
-            "released_by": released_by,
-            "verified_and_deployed_by": verified_and_deployed_by,
-            "change_requestor": change_requestor,
-            "release_notes": (data.get("release_notes") or "").strip() or None,
-            "comments": (data.get("comments") or "").strip() or None,
-            "incident_number": (data.get("incident_number") or "").strip() or None,
-            "roll_back": data["roll_back"],
-            "status": data["status"],
-        }
-        changes = {}
-        for field, new_value in new_record.items():
-            old_value = old_record.get(field)
-            if audit_value(old_value) != audit_value(new_value):
-                changes[field] = {
-                    "old": audit_value(old_value),
-                    "new": audit_value(new_value),
-                }
-        if changes:
-            insert_change_history(
-                cursor,
-                deployment_id,
-                old_record.get("cr_number"),
-                old_record.get("rfid"),
-                modified_by,
-                "Updated",
-                changes,
-            )
         conn.commit()
         write_audit_log(
             "INFO",
-            f"DevOps updated deployment record ID={deployment_id}; changed_by={modified_by}; fields={','.join(changes.keys()) or 'no changes'}",
-            old_record.get("cr_number"),
-            old_record.get("rfid"),
+            f"DevOps updated deployment record ID={deployment_id}; status={data['status']}",
         )
-        return jsonify({
-            "success": True,
-            "message": "Deployment details updated successfully."
-        })
+        return jsonify({"success": True, "message": "Deployment details updated successfully."})
     except errors.ExclusionViolation:
         if conn:
             conn.rollback()
@@ -981,7 +745,6 @@ def pending_deployments():
                 verified_and_deployed_by,
                 change_requestor,
                 release_notes,
-                comments,
                 incident_number,
                 roll_back,
                 status
@@ -1018,78 +781,6 @@ def pending_deployments():
         if conn:
             conn.close()
 
-
-@app.route("/api/deployments-by-date", methods=["GET"])
-def deployments_by_date():
-    """Return deployment records for the selected local calendar date."""
-    date_text = (request.args.get("date") or "").strip()
-    try:
-        selected_date = date.fromisoformat(date_text)
-    except ValueError:
-        return jsonify({
-            "success": False,
-            "message": "Choose a valid date in YYYY-MM-DD format.",
-        }), 400
-
-    conn = None
-    cursor = None
-    try:
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("""
-            SELECT
-                id,
-                cr_number,
-                rfid,
-                deployment_date,
-                slot_start,
-                slot_end,
-                slots,
-                application_name,
-                deployment_type,
-                change_type,
-                released_by,
-                verified_and_deployed_by,
-                change_requestor,
-                release_notes,
-                comments,
-                incident_number,
-                roll_back,
-                status
-            FROM public.deployment_tracker
-            WHERE deployment_date = %s
-            ORDER BY slot_start NULLS LAST, id ASC
-        """, (selected_date,))
-
-        columns = [column[0] for column in cursor.description]
-        deployments = []
-        for row in cursor.fetchall():
-            record = dict(zip(columns, row))
-            for key, value in record.items():
-                if isinstance(value, (datetime, date, time)):
-                    record[key] = value.isoformat()
-                elif value is not None and not isinstance(value, (str, int, float, bool)):
-                    record[key] = str(value)
-            deployments.append(record)
-
-        return jsonify({
-            "success": True,
-            "date": selected_date.isoformat(),
-            "deployments": deployments,
-            "count": len(deployments),
-        })
-    except Exception:
-        app.logger.exception("Unable to load deployments for selected date %s", date_text)
-        return jsonify({
-            "success": False,
-            "message": "Unable to load the deployment schedule. Check server logs.",
-        }), 500
-    finally:
-        if cursor:
-            cursor.close()
-        if conn:
-            conn.close()
-
 @app.route(
     "/api/deployment-approval/<int:deployment_id>",
     methods=["POST"]
@@ -1097,13 +788,6 @@ def deployments_by_date():
 
 def decide_deployment_request(deployment_id):
     payload = request.get_json(silent=True) or {}
-    try:
-        modified_by = normalize_audit_email(payload.get("modified_by"))
-    except ValueError as exc:
-        return jsonify({"success": False, "message": str(exc)}), 400
-    modified_by_passcode = str(payload.get("modified_by_passcode") or "").strip()
-    if not re.fullmatch(r"\d{4}", modified_by_passcode):
-        return jsonify({"success": False, "message": "Enter the 4-digit passcode for the selected email."}), 400
     decision = (payload.get("decision") or "").strip().lower()
     status_map = {
         "approve": "Approved",
@@ -1114,11 +798,6 @@ def decide_deployment_request(deployment_id):
             "success": False,
             "message": "Decision must be approve or reject."
         }), 400
-    credentials_ok, credential_message, credential_status = verify_audit_user_credentials(
-        modified_by, modified_by_passcode
-    )
-    if not credentials_ok:
-        return jsonify({"success": False, "message": credential_message}), credential_status
     conn = None
     cursor = None
     new_status = status_map[decision]
@@ -1126,36 +805,6 @@ def decide_deployment_request(deployment_id):
         conn = get_connection()
         conn.autocommit = False
         cursor = conn.cursor()
-
-        # Read the exact row under lock so the email contains every current form field.
-        cursor.execute("""
-            SELECT
-                id, cr_number, rfid, deployment_date, slot_start, slot_end,
-                application_name, deployment_type, change_type, released_by,
-                verified_and_deployed_by, change_requestor, release_notes,
-                comments, incident_number, roll_back, status
-            FROM public.deployment_tracker
-            WHERE id = %s
-            FOR UPDATE
-        """, (deployment_id,))
-        old_row = cursor.fetchone()
-        if old_row is None:
-            conn.rollback()
-            return jsonify({
-                "success": False,
-                "message": "Deployment record not found. Refresh the pending list."
-            }), 409
-
-        columns = [desc[0] for desc in cursor.description]
-        deployment_snapshot = dict(zip(columns, old_row))
-        old_status = str(deployment_snapshot.get("status") or "Pending").strip()
-        if old_status.casefold() != "pending":
-            conn.rollback()
-            return jsonify({
-                "success": False,
-                "message": "Request is no longer pending. Refresh the pending list."
-            }), 409
-
         cursor.execute("""
             UPDATE public.deployment_tracker
             SET status = %s
@@ -1163,8 +812,8 @@ def decide_deployment_request(deployment_id):
               AND LOWER(TRIM(COALESCE(status, 'Pending'))) = 'pending'
             RETURNING cr_number, rfid
         """, (new_status, deployment_id))
-        updated_row = cursor.fetchone()
-        if updated_row is None:
+        row = cursor.fetchone()
+        if row is None:
             conn.rollback()
             return jsonify({
                 "success": False,
@@ -1173,25 +822,14 @@ def decide_deployment_request(deployment_id):
                     "Refresh the pending list."
                 )
             }), 409
-
-        insert_change_history(
-            cursor,
-            deployment_id,
-            updated_row[0],
-            updated_row[1],
-            modified_by,
-            decision.title(),
-            {"status": {"old": old_status, "new": new_status}},
-        )
         conn.commit()
         write_audit_log(
             "INFO",
             f"Deployment request {decision}d: "
-            f"ID={deployment_id}, CR={updated_row[0]}, status={new_status}, changed_by={modified_by}",
-            updated_row[0],
-            updated_row[1]
+            f"ID={deployment_id}, CR={row[0]}, status={new_status}",
+            row[0],
+            row[1]
         )
-
         return jsonify({
             "success": True,
             "message": f"Request {new_status.lower()} successfully.",
@@ -1352,13 +990,9 @@ def Release_Calender():
         )
     data = request.form.to_dict()
     required_fields = [
-        "cr_number",
-        "deployment_date",
-        "slot_start",
-        "application_name",
-        "deployment_type",
-        "change_type",
-        "change_requestor",
+        "cr_number", "deployment_date", "slot_start", "application_name",
+        "deployment_type", "change_type", "roll_back", "released_by",
+        "verified_and_deployed_by", "change_requestor",
     ]
     for field in required_fields:
         if not (data.get(field) or "").strip():
@@ -1373,11 +1007,13 @@ def Release_Calender():
     try:
         rfid = save_deployment(data)
         cr_number = (data.get("cr_number") or "").strip()
-        success_message = (
-            "Request submitted successfully! "
-            f"CR Number: {cr_number} | RFID: {rfid}"
+        flash(
+            (
+                "Request submitted successfully! "
+                f"CR Number: {cr_number} | RFID: {rfid}"
+            ),
+            "success",
         )
-        flash(success_message, "success")
         return redirect(url_for("Release_Calender"))
     except ValueError as exc:
         flash(str(exc), "error")
@@ -1394,28 +1030,12 @@ def Release_Calender():
         ), 500
 
 @app.route("/manager", methods=["GET"])
+
 def manager_dashboard():
-    """Manager dashboard with a week-selectable deployment activity chart."""
+    """Read-only dashboard; counts are based on deployment_date."""
     conn = None
     cursor = None
     try:
-        # Read ?week_start=YYYY-MM-DD. Always align to Monday so the chart
-        # consistently displays a Monday-to-Sunday calendar week.
-        week_start_text = (request.args.get("week_start") or "").strip()
-        try:
-            selected_day = date.fromisoformat(week_start_text) if week_start_text else date.today()
-        except ValueError:
-            selected_day = date.today()
-
-        activity_week_start = selected_day - timedelta(days=selected_day.weekday())
-        activity_week_end = activity_week_start + timedelta(days=6)
-        activity_week_end_exclusive = activity_week_start + timedelta(days=7)
-        previous_week_start = activity_week_start - timedelta(days=7)
-        next_week_start = activity_week_start + timedelta(days=7)
-
-        # Prepare each day, including days with no deployments.
-        day_counts = {activity_week_start + timedelta(days=i): 0 for i in range(7)}
-
         conn = get_connection()
         cursor = conn.cursor()
         cursor.execute("""
@@ -1441,38 +1061,6 @@ def manager_dashboard():
             "monthly": metric_row[3] or 0,
             "rollbacks": metric_row[4] or 0,
         }
-
-        # Counts for the selected calendar week, grouped by deployment date.
-        cursor.execute("""
-            SELECT deployment_date, COUNT(*)
-            FROM public.deployment_tracker
-            WHERE deployment_date >= %s
-              AND deployment_date < %s
-            GROUP BY deployment_date
-            ORDER BY deployment_date
-        """, (activity_week_start, activity_week_end_exclusive))
-        for deployment_day, count in cursor.fetchall():
-            if deployment_day in day_counts:
-                day_counts[deployment_day] = count
-
-        chart_scale_max = max(4, max(day_counts.values(), default=0))
-        activity_chart = []
-        for chart_day, count in day_counts.items():
-            activity_chart.append({
-                "date": chart_day.isoformat(),
-                "label": chart_day.strftime("%a"),
-                "count": count,
-                "height_percent": round((count / chart_scale_max) * 100, 1),
-            })
-        chart_y_ticks = sorted({
-            chart_scale_max,
-            round(chart_scale_max * 0.75),
-            round(chart_scale_max * 0.5),
-            round(chart_scale_max * 0.25),
-            0,
-        }, reverse=True)
-
-        # Load all records for the existing manager table.
         cursor.execute("""
             SELECT id, cr_number, rfid, deployment_date, slot_start, slot_end,
                    application_name, deployment_type, change_type, released_by,
@@ -1484,31 +1072,7 @@ def manager_dashboard():
         rows = cursor.fetchall()
         columns = [desc[0] for desc in cursor.description]
         records = [dict(zip(columns, row)) for row in rows]
-
-        cursor.execute("""
-            SELECT id, deployment_id, cr_number, rfid, modified_at,
-                   modified_by, action, changes
-            FROM public.deployment_change_history
-            ORDER BY modified_at DESC, id DESC
-            LIMIT 200
-        """)
-        history_rows = cursor.fetchall()
-        history_columns = [desc[0] for desc in cursor.description]
-        change_history = [dict(zip(history_columns, row)) for row in history_rows]
-
-        return render_template(
-            "manager.html",
-            metrics=metrics,
-            records=records,
-            activity_chart=activity_chart,
-            chart_y_ticks=chart_y_ticks,
-            chart_scale_max=chart_scale_max,
-            activity_week_start=activity_week_start,
-            activity_week_end=activity_week_end,
-            previous_week_start=previous_week_start,
-            next_week_start=next_week_start,
-            change_history=change_history,
-        )
+        return render_template("manager.html", metrics=metrics, records=records)
     except Exception:
         app.logger.exception("Unable to load manager dashboard")
         return "Unable to load manager dashboard. Check the Flask logs and database connection.", 500

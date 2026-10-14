@@ -781,7 +781,7 @@
 
 
                 <p class="hint" id="slotTimeHelp">
-                    Each tile represents 30 minutes, from 6:30 PM to 11:00 PM. Orange and red slots cannot be selected.
+                    Each standard tile represents 30 minutes, from 6:30 PM to 11:30 PM. Emergency CR can use any 30-minute time. Orange and red slots cannot be selected.
                 </p>
 
 
@@ -1397,7 +1397,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 slotTimeHelp.textContent = "Emergency CR: 30-minute slots are available throughout the day and night. Orange and red slots cannot be selected.";
                 slotSelection.textContent = "Emergency CR: choose any available 30-minute time, day or night.";
             } else {
-                slotTimeHelp.textContent = "Each tile represents 30 minutes, from 6:30 PM to 11:00 PM. Orange and red slots cannot be selected.";
+                slotTimeHelp.textContent = "Each standard tile represents 30 minutes, from 6:30 PM to 11:30 PM. Emergency CR can use any 30-minute time. Orange and red slots cannot be selected.";
                 slotSelection.textContent = "No slot selected.";
             }
 
@@ -1623,10 +1623,10 @@ document.addEventListener("DOMContentLoaded", function () {
     function isDateAllowedForChangeType(date, changeType) {
         const day = date.getDay(); // Sunday=0, Tuesday=2, Friday=5
         if (date < todayLocal) return false;
-        if (!changeType) return true; // Users may choose a date before choosing the type.
-        if (changeType === "Emergency CR") return true;
+        if (!changeType) return true;
+        if (changeType === "Emergency CR") return true; // Any future day, weekends included
         if (changeType === "Normal CR") return day === 2 || day === 5;
-        return day !== 0 && day !== 6; // Standard, Forward Fix, Bug Fix: weekdays only
+        return day !== 0 && day !== 6; // Standard, Forward Fix, Bug Fix: Monday–Friday
     }
 
     function renderMonthCalendar() {
@@ -1744,7 +1744,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 calendarHelp.style.color = "#b91c1c";
                 calendarHelp.textContent = changeTypeInput.value === "Normal CR"
                     ? "Normal CR deployments are allowed only on Tuesdays and Fridays. Choose another date."
-                    : "This change type allows weekday bookings only. Choose another date.";
+                    : "Standard CR, Forward Fix CR, and Bug Fix CR are allowed Monday–Friday only. Choose another date.";
                 return;
             }
         }

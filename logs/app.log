@@ -3940,3 +3940,126 @@ jinja2.exceptions.UndefinedError: 'metrics' is undefined
 2026-10-13 17:29:59,367 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:29:59] "GET /api/deployments-by-date?date=2026-10-13 HTTP/1.1" 200 -
 2026-10-13 17:30:14,546 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:30:14] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
 2026-10-13 17:30:30,492 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:30:30] "GET / HTTP/1.1" 200 -
+2026-10-13 17:47:23,495 INFO werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-10-13 17:47:23,500 INFO werkzeug: [33mPress CTRL+C to quit[0m
+2026-10-13 17:47:38,985 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:47:38] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-13 17:47:39,336 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:47:39] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-13 17:47:39,375 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:47:39] "GET /api/deployments-by-date?date=2026-10-13 HTTP/1.1" 200 -
+2026-10-13 17:49:23,370 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:49:23] "GET /slot-status?date=2026-10-13&change_type= HTTP/1.1" 200 -
+2026-10-13 17:49:34,964 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:49:34] "GET /lookup-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-13 17:49:47,175 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:49:47] "GET /lookup-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-13 17:51:04,392 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:04] "GET /slot-status?date=2026-10-13&change_type=Normal%20CR HTTP/1.1" 200 -
+2026-10-13 17:51:15,704 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:15] "GET /lookup-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-13 17:51:15,782 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:15] "GET /slot-status?date=2026-10-13&change_type=Normal%20CR HTTP/1.1" 200 -
+2026-10-13 17:51:15,884 INFO app: Request submitted successfully. Record ID=10; slot=2026-10-13 19:30:00
+2026-10-13 17:51:16,051 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:16] "[32mPOST / HTTP/1.1[0m" 302 -
+2026-10-13 17:51:16,267 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:16] "GET / HTTP/1.1" 200 -
+2026-10-13 17:51:20,582 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:20] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-13 17:51:20,844 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:20] "GET /api/deployments-by-date?date=2026-10-13 HTTP/1.1" 200 -
+2026-10-13 17:51:20,906 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:20] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-13 17:51:52,953 INFO app: Audit identity registered: vipin1233@gmail.com
+2026-10-13 17:51:52,953 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:51:52] "[35m[1mPOST /api/audit-users/register HTTP/1.1[0m" 201 -
+2026-10-13 17:52:33,643 INFO app: DevOps updated deployment record ID=10; changed_by=vipin1233@gmail.com; fields=released_by,verified_and_deployed_by,status
+2026-10-13 17:52:33,707 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:52:33] "PUT /api/deployment-by-id/10 HTTP/1.1" 200 -
+2026-10-13 17:52:33,791 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:52:33] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-13 17:52:33,861 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:52:33] "GET /api/deployments-by-date?date=2026-10-13 HTTP/1.1" 200 -
+2026-10-13 17:52:40,421 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:52:40] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-13 17:52:55,169 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:52:55] "GET /api/deployments-by-date?date=2026-10-14 HTTP/1.1" 200 -
+2026-10-13 17:52:59,068 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:52:59] "GET /manager HTTP/1.1" 200 -
+2026-10-13 17:57:09,988 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:57:09] "GET /manager HTTP/1.1" 200 -
+2026-10-13 17:57:11,921 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:57:11] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-13 17:57:12,070 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:57:12] "GET /api/deployments-by-date?date=2026-10-13 HTTP/1.1" 200 -
+2026-10-13 17:57:12,086 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:57:12] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-13 17:57:14,571 INFO werkzeug: 127.0.0.1 - - [13/Oct/2026 17:57:14] "GET / HTTP/1.1" 200 -
+2026-10-14 11:23:28,537 INFO werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-10-14 11:23:29,473 INFO werkzeug: [33mPress CTRL+C to quit[0m
+2026-10-14 11:23:38,861 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:23:38] "GET / HTTP/1.1" 200 -
+2026-10-14 11:23:45,492 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:23:45] "GET /slot-status?date=2026-10-15&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 11:24:02,009 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:01] "GET /lookup-cr?cr_number=CR-009 HTTP/1.1" 200 -
+2026-10-14 11:24:03,218 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:03] "GET /lookup-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 11:24:04,070 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:04] "GET /lookup-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 11:24:22,157 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:22] "GET /slot-status?date=2026-10-14&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 11:24:32,086 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:32] "GET /lookup-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 11:24:32,194 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:32] "GET /slot-status?date=2026-10-14&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 11:24:32,538 INFO app: Request submitted successfully. Record ID=12; slot=2026-10-14 19:30:00
+2026-10-14 11:24:32,606 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:32] "[32mPOST / HTTP/1.1[0m" 302 -
+2026-10-14 11:24:32,614 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:32] "GET / HTTP/1.1" 200 -
+2026-10-14 11:24:38,852 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:38] "GET /slot-status?date=2026-10-14&change_type= HTTP/1.1" 200 -
+2026-10-14 11:24:41,203 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 11:24:41] "GET /slot-status?date=2026-10-14&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 12:13:54,510 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:13:54] "GET / HTTP/1.1" 200 -
+2026-10-14 12:15:36,664 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:15:36] "GET /slot-status?date=2026-10-22&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 12:16:41,346 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:16:41] "GET /slot-status?date=2026-10-16&change_type=Normal%20CR HTTP/1.1" 200 -
+2026-10-14 12:21:17,141 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:21:17] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:09,751 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:09] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:10,416 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:10] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:10,943 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:10] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:11,402 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:11] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:11,964 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:11] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:12,472 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:12] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:13,091 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:13] "GET /manager HTTP/1.1" 200 -
+2026-10-14 12:26:20,316 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:20] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:26:22,800 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:22] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:26:23,649 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:23] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:26:24,414 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:24] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:26:24,598 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:24] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:26:24,945 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:24] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:26:25,508 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:25] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:26:40,226 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:40] "GET /api/deployments-by-date?date=2026-10-15 HTTP/1.1" 200 -
+2026-10-14 12:26:42,174 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:42] "GET /api/deployments-by-date?date=2026-10-16 HTTP/1.1" 200 -
+2026-10-14 12:26:43,834 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:43] "GET /api/deployments-by-date?date=2026-10-13 HTTP/1.1" 200 -
+2026-10-14 12:26:56,488 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:56] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:26:58,439 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:58] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:26:59,282 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:59] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:26:59,534 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:26:59] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:28:04,730 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:28:04] "GET /api/deployments-by-date?date=2026-10-14 HTTP/1.1" 200 -
+2026-10-14 12:28:13,153 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:28:13] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:28:13,344 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:28:13] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:28:13,421 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:28:13] "GET /api/deployments-by-date?date=2026-10-14 HTTP/1.1" 200 -
+2026-10-14 12:28:18,326 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:28:18] "GET /api/deployment-by-cr?cr_number=CR-0009 HTTP/1.1" 200 -
+2026-10-14 12:29:48,063 INFO werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-10-14 12:29:48,063 INFO werkzeug: [33mPress CTRL+C to quit[0m
+2026-10-14 12:29:51,001 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:29:51] "GET / HTTP/1.1" 200 -
+2026-10-14 12:29:55,866 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:29:55] "GET /slot-status?date=2026-10-15&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 12:30:11,029 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:30:11] "GET /slot-status?date=2026-10-14&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 12:30:13,914 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:30:13] "GET /slot-status?date=2026-10-14&change_type=Standard%20CR HTTP/1.1" 200 -
+2026-10-14 12:30:18,886 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:30:18] "GET /slot-status?date=2026-10-14&change_type=Standard%20CR HTTP/1.1" 200 -
+2026-10-14 12:30:21,221 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:30:21] "GET /slot-status?date=2026-10-14&change_type=Emergency%20CR HTTP/1.1" 200 -
+2026-10-14 12:35:43,374 INFO werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-10-14 12:35:43,375 INFO werkzeug: [33mPress CTRL+C to quit[0m
+2026-10-14 12:35:47,443 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:35:47] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:35:47,520 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:35:47] "[33mGET /api/deployments-by-date?date=2026-10-14 HTTP/1.1[0m" 404 -
+2026-10-14 12:35:47,616 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:35:47] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:35:51,673 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:35:51] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:36:44,371 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:36:44] "[33mGET /api/deployments-by-date?date=2026-10-13 HTTP/1.1[0m" 404 -
+2026-10-14 12:36:56,607 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:36:56] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:44:19,256 INFO werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-10-14 12:44:19,256 INFO werkzeug: [33mPress CTRL+C to quit[0m
+2026-10-14 12:44:24,691 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:24] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:44:24,769 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:24] "[33mGET /api/deployments-by-date?date=2026-10-14 HTTP/1.1[0m" 404 -
+2026-10-14 12:44:24,877 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:24] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:44:28,603 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:28] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:44:32,135 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:32] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:44:32,232 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:32] "[33mGET /api/deployments-by-date?date=2026-10-14 HTTP/1.1[0m" 404 -
+2026-10-14 12:44:32,371 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:32] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:44:36,079 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:44:36] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -
+2026-10-14 12:48:20,250 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:20] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:48:20,329 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:20] "[33mGET /api/deployments-by-date?date=2026-10-14 HTTP/1.1[0m" 404 -
+2026-10-14 12:48:20,520 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:20] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:48:21,957 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:21] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:48:22,034 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:22] "[33mGET /api/deployments-by-date?date=2026-10-14 HTTP/1.1[0m" 404 -
+2026-10-14 12:48:22,120 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:22] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:48:36,546 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:36] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:48:36,619 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:36] "[33mGET /api/deployments-by-date?date=2026-10-14 HTTP/1.1[0m" 404 -
+2026-10-14 12:48:36,733 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:48:36] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:53:55,092 INFO werkzeug: [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:5000
+2026-10-14 12:53:55,092 INFO werkzeug: [33mPress CTRL+C to quit[0m
+2026-10-14 12:53:57,242 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:53:57] "GET /governance_tracker HTTP/1.1" 200 -
+2026-10-14 12:53:57,448 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:53:57] "GET /api/deployments-by-date?date=2026-10-14 HTTP/1.1" 200 -
+2026-10-14 12:53:57,502 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:53:57] "GET /api/pending-deployments HTTP/1.1" 200 -
+2026-10-14 12:54:03,806 INFO werkzeug: 127.0.0.1 - - [14/Oct/2026 12:54:03] "GET /api/deployment-by-cr?cr_number=CR-12345 HTTP/1.1" 200 -

@@ -225,6 +225,11 @@
     </div>
 
     <div id="message" class="message" role="status" aria-live="polite"></div>
+    <section id="crRequestsSection" class="hidden" style="margin-top:16px">
+      <h3 style="margin:0 0 10px">All Requests for This CR</h3>
+      <p class="muted">Click a request below to open its editable Deployment Details form.</p>
+      <div id="crRequestsList" class="table-wrap"></div>
+    </section>
 
   </section>
 
@@ -372,6 +377,21 @@
         <input type="date" id="scheduleDateInput" aria-label="Choose a schedule date">
       </div>
 
+      <div class="schedule-cr-search" style="margin-top:12px;padding-top:12px;border-top:1px solid #e2e8f0">
+        <label for="scheduleCrInput">Find all requests for a CR</label>
+        <div style="display:flex;gap:6px;margin-top:5px">
+          <input id="scheduleCrInput" type="text" placeholder="e.g. CR-0009" autocomplete="off" style="min-width:0;flex:1">
+          <button type="button" class="secondary" id="scheduleCrSearchButton">Find Requests</button>
+        </div>
+        <div id="scheduleCrMessage" class="schedule-meta" role="status" aria-live="polite"></div>
+        <div class="table-wrap" id="scheduleCrResultsWrap" hidden>
+          <table class="schedule-table">
+            <thead><tr><th>Request / Date / Status</th><th>Slot</th></tr></thead>
+            <tbody id="scheduleCrResultsBody"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div id="scheduleDateLabel" class="schedule-meta" aria-live="polite">Loading schedule...</div>
       <div id="scheduleMessage" class="schedule-meta" role="status" aria-live="polite">Loading deployments...</div>
 
@@ -399,6 +419,8 @@ document.addEventListener("DOMContentLoaded", function () {
   const message = document.getElementById("message");
 
   const detailsCard = document.getElementById("detailsCard");
+  const crRequestsSection = document.getElementById("crRequestsSection");
+  const crRequestsList = document.getElementById("crRequestsList");
 
   const saveChangesButton = document.getElementById("saveChangesButton");
 
@@ -414,6 +436,11 @@ document.addEventListener("DOMContentLoaded", function () {
   const scheduleDateLabel = document.getElementById("scheduleDateLabel");
   const scheduleMessage = document.getElementById("scheduleMessage");
   const dailyScheduleBody = document.getElementById("dailyScheduleBody");
+  const scheduleCrInput = document.getElementById("scheduleCrInput");
+  const scheduleCrSearchButton = document.getElementById("scheduleCrSearchButton");
+  const scheduleCrMessage = document.getElementById("scheduleCrMessage");
+  const scheduleCrResultsWrap = document.getElementById("scheduleCrResultsWrap");
+  const scheduleCrResultsBody = document.getElementById("scheduleCrResultsBody");
   const schedulePreviousDay = document.getElementById("schedulePreviousDay");
   const scheduleNextDay = document.getElementById("scheduleNextDay");
   const scheduleYesterday = document.getElementById("scheduleYesterday");
@@ -782,6 +809,63 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  async function searchRequestsForCR() {
+    const raw = (scheduleCrInput.value || "").trim();
+    const crNumber = normalizeCR(raw);
+    scheduleCrResultsBody.replaceChildren();
+    scheduleCrResultsWrap.hidden = true;
+    if (!crNumber) {
+      scheduleCrMessage.textContent = "Enter a CR number, for example CR-0009.";
+      return;
+    }
+    scheduleCrSearchButton.disabled = true;
+    scheduleCrSearchButton.textContent = "Searching...";
+    scheduleCrMessage.textContent = "Loading requests...";
+    try {
+      const response = await fetch("/api/deployment-by-cr?cr_number=" + encodeURIComponent(crNumber), {
+        headers: { Accept: "application/json" }, cache: "no-store"
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || "Could not find requests for this CR.");
+      const requests = Array.isArray(result.requests) ? result.requests : (result.deployment ? [result.deployment] : []);
+      if (!requests.length) throw new Error("No requests found for " + crNumber + ".");
+      requests.forEach((record, index) => {
+        const row = document.createElement("tr");
+        row.className = "schedule-row";
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        const summary = document.createElement("td");
+        const title = document.createElement("div");
+        title.className = "schedule-cr";
+        title.textContent = (record.cr_number || crNumber) + " · Serial No. " + (index + 1);
+        const meta = document.createElement("div");
+        meta.className = "schedule-app";
+        meta.textContent = (record.deployment_date || "Date not set").substring(0, 10) + " · " + (record.application_name || "Application not specified");
+        const status = document.createElement("span");
+        status.className = "schedule-status " + String(record.status || "Pending").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        status.textContent = record.status || "Pending";
+        summary.append(title, meta, status);
+        const slot = document.createElement("td");
+        slot.textContent = (record.slot_start ? displayTime(record.slot_start) : "Time not set") + (record.slot_end ? " – " + displayTime(record.slot_end) : "");
+        row.append(summary, slot);
+        const open = () => {
+          openScheduleDeployment(record, row);
+          detailsCard.scrollIntoView({ behavior: "smooth", block: "start" });
+        };
+        row.addEventListener("click", open);
+        row.addEventListener("keydown", event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); open(); } });
+        scheduleCrResultsBody.appendChild(row);
+      });
+      scheduleCrResultsWrap.hidden = false;
+      scheduleCrMessage.textContent = requests.length + " request(s) found for " + crNumber + ". Select a row to open its form.";
+    } catch (error) {
+      scheduleCrMessage.textContent = error.message || "Could not search requests.";
+    } finally {
+      scheduleCrSearchButton.disabled = false;
+      scheduleCrSearchButton.textContent = "Find Requests";
+    }
+  }
+
   function moveScheduleDate(days) {
     const current = parseDate(selectedScheduleDate) || new Date();
     current.setDate(current.getDate() + days);
@@ -849,54 +933,84 @@ document.addEventListener("DOMContentLoaded", function () {
 
   }
 
+  function renderCRRequests(requests) {
+    crRequestsList.replaceChildren();
+    crRequestsSection.classList.remove("hidden");
+    detailsCard.classList.add("hidden");
+
+    const table = document.createElement("table");
+    table.innerHTML = "<thead><tr><th>Serial No.</th><th>Date</th><th>Slot</th><th>Application</th><th>Change Type</th><th>Status</th><th>Action</th></tr></thead>";
+    const tbody = document.createElement("tbody");
+
+    requests.forEach(function (record, index) {
+      const row = document.createElement("tr");
+      const values = [
+        String(index + 1),
+        record.deployment_date ? String(record.deployment_date).substring(0, 10) : "",
+        displayTime(record.slot_start) + (record.slot_end ? " - " + displayTime(record.slot_end) : ""),
+        record.application_name || "",
+        record.change_type || "",
+        record.status || "Pending"
+      ];
+      values.forEach(function (value) {
+        const cell = document.createElement("td");
+        cell.textContent = value;
+        row.appendChild(cell);
+      });
+      const actionCell = document.createElement("td");
+      const selectButton = document.createElement("button");
+      selectButton.type = "button";
+      selectButton.textContent = "Open Request";
+      selectButton.addEventListener("click", function () {
+        populateDetails(record);
+        showMessage("Loaded " + (record.cr_number || "") + " (serial no. " + (index + 1) + ").", "success");
+        detailsCard.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      actionCell.appendChild(selectButton);
+      row.appendChild(actionCell);
+      row.style.cursor = "pointer";
+      row.addEventListener("click", function (event) {
+        if (event.target !== selectButton) selectButton.click();
+      });
+      tbody.appendChild(row);
+    });
+    table.appendChild(tbody);
+    crRequestsList.appendChild(table);
+  }
+
   async function fetchDetails() {
-
     const crNumber = normalizeCR(crInput.value);
-
     if (!crNumber) {
-
       detailsCard.classList.add("hidden");
-
+      crRequestsSection.classList.add("hidden");
       showMessage("Enter a valid CR Number containing digits, for example 12345.", "error");
-
       crInput.focus();
-
       return;
-
     }
 
     fetchButton.disabled = true;
-
     fetchButton.textContent = "Fetching...";
-
+    crRequestsSection.classList.add("hidden");
+    detailsCard.classList.add("hidden");
     try {
-
-      const response = await fetch("/api/deployment-by-cr?cr_number=" + encodeURIComponent(crNumber), { headers: { Accept: "application/json" }, cache: "no-store" });
-
+      const response = await fetch("/api/deployment-by-cr?cr_number=" + encodeURIComponent(crNumber), {
+        headers: { Accept: "application/json" }, cache: "no-store"
+      });
       const result = await response.json();
-
-      if (!response.ok || !result.success) throw new Error(result.message || "Could not retrieve deployment details.");
-
-      populateDetails(result.deployment);
-
-      showMessage("Deployment details fetched successfully for " + crNumber + ".", "success");
-
+      if (!response.ok || !result.success) throw new Error(result.message || "Could not retrieve deployment requests.");
+      const requests = Array.isArray(result.requests) ? result.requests : [];
+      if (!requests.length) throw new Error("No requests found for " + crNumber + ".");
+      renderCRRequests(requests);
+      showMessage("Found " + requests.length + " request(s) for " + crNumber + ". Click a request to open its details.", "success");
     } catch (error) {
-
+      crRequestsSection.classList.add("hidden");
       detailsCard.classList.add("hidden");
-
-      showMessage(error.message || "Unable to fetch deployment details.", "error");
-
+      showMessage(error.message || "Unable to fetch deployment requests.", "error");
       console.error("DevOps lookup error:", error);
-
     } finally {
-
       fetchButton.disabled = false;
-
       fetchButton.textContent = "Fetch Details";
-
     }
-
   }
 
   async function loadPendingRequests() {
@@ -1001,6 +1115,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
   document.getElementById("refreshPendingButton").addEventListener("click", loadPendingRequests);
 
+  scheduleCrSearchButton.addEventListener("click", searchRequestsForCR);
+  scheduleCrInput.addEventListener("keydown", event => { if (event.key === "Enter") { event.preventDefault(); searchRequestsForCR(); } });
   schedulePreviousDay.addEventListener("click", () => moveScheduleDate(-1));
   scheduleNextDay.addEventListener("click", () => moveScheduleDate(1));
   scheduleYesterday.addEventListener("click", () => jumpScheduleDate(-1));
